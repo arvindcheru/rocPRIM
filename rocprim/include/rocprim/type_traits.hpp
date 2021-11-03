@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,62 +32,67 @@
 
 BEGIN_ROCPRIM_NAMESPACE
 
-/// \brief Behaves like std::is_floating_point, but also includes half-precision
+/// \brief Behaves like std::is_floating_point, but also includes half-precision and bfloat16-precision
 /// floating point type (rocprim::half).
 template<class T>
 struct is_floating_point
     : std::integral_constant<
         bool,
         std::is_floating_point<T>::value ||
-        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value
+        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value ||
+        std::is_same<::rocprim::bfloat16, typename std::remove_cv<T>::type>::value
     > {};
 
 /// \brief Alias for std::is_integral.
 template<class T>
 using is_integral = std::is_integral<T>;
 
-/// \brief Behaves like std::is_arithmetic, but also includes half-precision
+/// \brief Behaves like std::is_arithmetic, but also includes half-precision and bfloat16-precision
 /// floating point type (\ref rocprim::half).
 template<class T>
 struct is_arithmetic
     : std::integral_constant<
         bool,
         std::is_arithmetic<T>::value ||
-        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value
+        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value ||
+        std::is_same<::rocprim::bfloat16, typename std::remove_cv<T>::type>::value
     > {};
 
-/// \brief Behaves like std::is_fundamental, but also includes half-precision
+/// \brief Behaves like std::is_fundamental, but also includes half-precision and bfloat16-precision
 /// floating point type (\ref rocprim::half).
 template<class T>
 struct is_fundamental
   : std::integral_constant<
         bool,
         std::is_fundamental<T>::value ||
-        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value
+        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value ||
+        std::is_same<::rocprim::bfloat16, typename std::remove_cv<T>::type>::value
 > {};
 
 /// \brief Alias for std::is_unsigned.
 template<class T>
 using is_unsigned = std::is_unsigned<T>;
 
-/// \brief Behaves like std::is_signed, but also includes half-precision
+/// \brief Behaves like std::is_signed, but also includes half-precision and bfloat16-precision
 /// floating point type (\ref rocprim::half).
 template<class T>
 struct is_signed
     : std::integral_constant<
         bool,
         std::is_signed<T>::value ||
-        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value
+        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value ||
+        std::is_same<::rocprim::bfloat16, typename std::remove_cv<T>::type>::value
     > {};
 
-/// \brief Behaves like std::is_scalar, but also includes half-precision
+/// \brief Behaves like std::is_scalar, but also includes half-precision and bfloat16-precision
 /// floating point type (\ref rocprim::half).
 template<class T>
 struct is_scalar
     : std::integral_constant<
         bool,
         std::is_scalar<T>::value ||
-        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value
+        std::is_same<::rocprim::half, typename std::remove_cv<T>::type>::value ||
+        std::is_same<::rocprim::bfloat16, typename std::remove_cv<T>::type>::value
     > {};
 
 /// \brief Behaves like std::is_compound, but also supports half-precision
@@ -133,7 +138,7 @@ struct get_unsigned_bits_type<T,8>
 };
 
 template<typename T, typename UnsignedBits>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleIn(UnsignedBits key)
     -> typename std::enable_if<is_floating_point<T>::value, UnsignedBits>::type
 {
@@ -143,7 +148,7 @@ auto TwiddleIn(UnsignedBits key)
 }
 
 template<typename T, typename UnsignedBits>
-static ROCPRIM_DEVICE inline
+static ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleIn(UnsignedBits key)
     -> typename std::enable_if<is_unsigned<T>::value, UnsignedBits>::type
 {
@@ -151,7 +156,7 @@ auto TwiddleIn(UnsignedBits key)
 };
 
 template<typename T, typename UnsignedBits>
-static ROCPRIM_DEVICE inline
+static ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleIn(UnsignedBits key)
     -> typename std::enable_if<is_integral<T>::value && is_signed<T>::value, UnsignedBits>::type
 {
@@ -160,7 +165,7 @@ auto TwiddleIn(UnsignedBits key)
 };
 
 template<typename T, typename UnsignedBits>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleOut(UnsignedBits key)
     -> typename std::enable_if<is_floating_point<T>::value, UnsignedBits>::type
 {
@@ -170,7 +175,7 @@ auto TwiddleOut(UnsignedBits key)
 }
 
 template<typename T, typename UnsignedBits>
-static ROCPRIM_DEVICE inline
+static ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleOut(UnsignedBits key)
     -> typename std::enable_if<is_unsigned<T>::value, UnsignedBits>::type
 {
@@ -178,7 +183,7 @@ auto TwiddleOut(UnsignedBits key)
 };
 
 template<typename T, typename UnsignedBits>
-static ROCPRIM_DEVICE inline
+static ROCPRIM_DEVICE ROCPRIM_INLINE
 auto TwiddleOut(UnsignedBits key)
     -> typename std::enable_if<is_integral<T>::value && is_signed<T>::value, UnsignedBits>::type
 {

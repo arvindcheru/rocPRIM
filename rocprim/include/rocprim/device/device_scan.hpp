@@ -31,6 +31,7 @@
 #include "../detail/match_result_type.hpp"
 
 #include "device_scan_config.hpp"
+#include "device_transform.hpp"
 #include "detail/device_scan_reduce_then_scan.hpp"
 #include "detail/device_scan_lookback.hpp"
 
@@ -51,7 +52,7 @@ template<
     class BinaryFunction,
     class ResultType
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void single_scan_kernel(InputIterator input,
                         const size_t size,
@@ -74,7 +75,7 @@ template<
     class BinaryFunction,
     class ResultType
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void block_reduce_kernel(InputIterator input,
                          BinaryFunction scan_op,
@@ -93,17 +94,24 @@ template<
     class BinaryFunction,
     class ResultType
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void final_scan_kernel(InputIterator input,
                        const size_t size,
                        OutputIterator output,
                        const ResultType initial_value,
                        BinaryFunction scan_op,
-                       ResultType * block_prefixes)
+                       ResultType * block_prefixes,
+                       ResultType * previous_last_element = nullptr,
+                       ResultType * new_last_element = nullptr,
+                       bool override_first_value = false,
+                       bool save_last_value = false)
 {
     final_scan_kernel_impl<Exclusive, Config>(
-        input, size, output, initial_value, scan_op, block_prefixes
+        input, size, output, initial_value,
+        scan_op, block_prefixes,
+        previous_last_element, new_last_element,
+        override_first_value, save_last_value
     );
 }
 
@@ -118,7 +126,7 @@ template<
     class ResultType,
     class LookBackScanState
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void lookback_scan_kernel(InputIterator input,
                           OutputIterator output,
@@ -127,16 +135,22 @@ void lookback_scan_kernel(InputIterator input,
                           BinaryFunction scan_op,
                           LookBackScanState lookback_scan_state,
                           const unsigned int number_of_blocks,
-                          ordered_block_id<unsigned int> ordered_bid)
+                          ordered_block_id<unsigned int> ordered_bid,
+                          ResultType * previous_last_element = nullptr,
+                          ResultType * new_last_element = nullptr,
+                          bool override_first_value = false,
+                          bool save_last_value = false)
 {
     lookback_scan_kernel_impl<Exclusive, Config>(
         input, output, size, initial_value, scan_op,
-        lookback_scan_state, number_of_blocks, ordered_bid
+        lookback_scan_state, number_of_blocks, ordered_bid,
+        previous_last_element, new_last_element,
+        override_first_value, save_last_value
     );
 }
 
 template<class LookBackScanState>
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void init_lookback_scan_state_kernel(LookBackScanState lookback_scan_state,
                                      const unsigned int number_of_blocks,
@@ -160,7 +174,7 @@ void init_lookback_scan_state_kernel(LookBackScanState lookback_scan_state,
 
 #define ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR(name, size, start) \
     { \
-        auto _error = hipPeekAtLastError(); \
+        auto _error = hipGetLastError(); \
         if(_error != hipSuccess) return _error; \
         if(debug_synchronous) \
         { \
@@ -204,10 +218,20 @@ auto scan_impl(void * temporary_storage,
     constexpr unsigned int items_per_thread = config::items_per_thread;
     constexpr auto items_per_block = block_size * items_per_thread;
 
+    static constexpr size_t size_limit = config::size_limit;
+    static constexpr size_t aligned_size_limit = std::max<size_t>(size_limit - size_limit % items_per_block, items_per_block);
+    size_t limited_size = std::min<size_t>(size, aligned_size_limit);
+    const bool use_limited_size = limited_size == aligned_size_limit;
+    size_t nested_prefixes_size_bytes = scan_get_temporary_storage_bytes<result_type>(limited_size, items_per_block);
+
     // Calculate required temporary storage
     if(temporary_storage == nullptr)
     {
-        storage_size = scan_get_temporary_storage_bytes<result_type>(size, items_per_block);
+        storage_size = nested_prefixes_size_bytes;
+
+        if(use_limited_size)
+            storage_size += 4 * sizeof(result_type);
+
         // Make sure user won't try to allocate 0 bytes memory, because
         // hipMalloc will return nullptr when size is zero.
         storage_size = storage_size == 0 ? 4 : storage_size;
@@ -218,78 +242,138 @@ auto scan_impl(void * temporary_storage,
     std::chrono::high_resolution_clock::time_point start;
 
     auto number_of_blocks = (size + items_per_block - 1)/items_per_block;
-    if(debug_synchronous)
-    {
-        std::cout << "block_size " << block_size << '\n';
-        std::cout << "number of blocks " << number_of_blocks << '\n';
-        std::cout << "items_per_block " << items_per_block << '\n';
-    }
 
     if( number_of_blocks == 0u )
         return hipSuccess;
 
     if(number_of_blocks > 1)
     {
-        // Pointer to array with block_prefixes
-        result_type * block_prefixes = static_cast<result_type*>(temporary_storage);
+        unsigned int number_of_launch = (size + limited_size - 1)/limited_size;
+        for (size_t i = 0, offset = 0; i < number_of_launch; i++, offset+=limited_size )
+        {
+            size_t current_size = std::min<size_t>(size - offset, limited_size);
+            number_of_blocks = (current_size + items_per_block - 1)/items_per_block;
+            if(debug_synchronous)
+            {
+                std::cout << "use_limited_size " << use_limited_size << '\n';
+                std::cout << "number_of_launch " << number_of_launch << '\n';
+                std::cout << "inex " << i << '\n';
+                std::cout << "aligned_size_limit " << aligned_size_limit << '\n';
+                std::cout << "size " << current_size << '\n';
+                std::cout << "block_size " << block_size << '\n';
+                std::cout << "number of blocks " << number_of_blocks << '\n';
+                std::cout << "items_per_block " << items_per_block << '\n';
+                std::cout.flush();
+            }
 
-        // Grid size for block_reduce_kernel, we don't need to calculate reduction
-        // of the last block as it will never be used as prefix for other blocks
-        auto grid_size = number_of_blocks - 1;
-        if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
-        hipLaunchKernelGGL(
-            HIP_KERNEL_NAME(detail::block_reduce_kernel<
-                config, InputIterator, BinaryFunction, result_type
-            >),
-            dim3(grid_size), dim3(block_size), 0, stream,
-            input, scan_op, block_prefixes
-        );
-        ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("block_reduce_kernel", size, start)
+            // Pointer to array with block_prefixes
+            char * ptr = reinterpret_cast<char *>(temporary_storage);
+            result_type * block_prefixes = reinterpret_cast<result_type*>(ptr);
+            result_type * previous_last_element = nullptr;
+            result_type * new_last_element = nullptr;
+            if(use_limited_size)
+            {
+                ptr += nested_prefixes_size_bytes;
+                previous_last_element = reinterpret_cast<result_type*>(ptr);
 
-        // TODO: Performance may increase if for (number_of_blocks < 8192) (or some other
-        // threshold) we would just use CPU to calculate prefixes.
+                ptr += sizeof(result_type);
+                new_last_element = reinterpret_cast<result_type*>(ptr);
+            }
 
-        // Calculate size of temporary storage for nested device scan operation
-        void * nested_temp_storage = static_cast<void*>(block_prefixes + number_of_blocks);
-        auto nested_temp_storage_size = storage_size - (number_of_blocks * sizeof(result_type));
+            // Grid size for block_reduce_kernel, we don't need to calculate reduction
+            // of the last block as it will never be used as prefix for other blocks
+            auto grid_size = number_of_blocks - 1;
+            if( grid_size != 0 )
+            {
+                if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
+                hipLaunchKernelGGL(
+                    HIP_KERNEL_NAME(detail::block_reduce_kernel<
+                        config, InputIterator, BinaryFunction, result_type
+                    >),
+                    dim3(grid_size), dim3(block_size), 0, stream,
+                    input + offset, scan_op, block_prefixes
+                );
+                ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("block_reduce_kernel", current_size, start)
 
-        if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
-        auto error = scan_impl<false, config>(
-            nested_temp_storage,
-            nested_temp_storage_size,
-            block_prefixes, // input
-            block_prefixes, // output
-            result_type(), // dummy initial value
-            number_of_blocks, // input size
-            scan_op,
-            stream,
-            debug_synchronous
-        );
-        if(error != hipSuccess) return error;
-        ROCPRIM_DETAIL_HIP_SYNC("nested_device_scan", number_of_blocks, start);
+                if( !Exclusive && i > 0 )
+                {
+                    hipError_t error = ::rocprim::transform(
+                        previous_last_element, block_prefixes, block_prefixes, 1,
+                        scan_op, stream, debug_synchronous
+                    );
+                    if(error != hipSuccess) return error;
+                }
 
-        // Grid size for final_scan_kernel
-        grid_size = number_of_blocks;
-        if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
-        hipLaunchKernelGGL(
-            HIP_KERNEL_NAME(detail::final_scan_kernel<
-                Exclusive, // flag for exclusive scan operation
-                config, // kernel configuration (block size, ipt)
-                InputIterator, OutputIterator,
-                BinaryFunction, result_type
-            >),
-            dim3(grid_size), dim3(block_size), 0, stream,
-            input,
-            size,
-            output,
-            static_cast<result_type>(initial_value),
-            scan_op,
-            block_prefixes
-        );
-        ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("final_scan_kernel", size, start);
+                // TODO: Performance may increase if for (number_of_blocks < 8192) (or some other
+                // threshold) we would just use CPU to calculate prefixes.
+
+                // Calculate size of temporary storage for nested device scan operation
+                void * nested_temp_storage = static_cast<void*>(block_prefixes + number_of_blocks);
+                auto nested_temp_storage_size = storage_size - (number_of_blocks * sizeof(result_type));
+
+                if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
+                auto error = scan_impl<false, config>(
+                    nested_temp_storage,
+                    nested_temp_storage_size,
+                    block_prefixes, // input
+                    block_prefixes, // output
+                    result_type(), // dummy initial value
+                    number_of_blocks, // input size
+                    scan_op,
+                    stream,
+                    debug_synchronous,
+                    size_limit
+                );
+                if(error != hipSuccess) return error;
+                ROCPRIM_DETAIL_HIP_SYNC("nested_device_scan", number_of_blocks, start);
+
+            }
+
+            // Grid size for final_scan_kernel
+            grid_size = number_of_blocks;
+            if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
+            hipLaunchKernelGGL(
+                HIP_KERNEL_NAME(detail::final_scan_kernel<
+                    Exclusive, // flag for exclusive scan operation
+                    config, // kernel configuration (block size, ipt)
+                    InputIterator, OutputIterator,
+                    BinaryFunction, result_type
+                >),
+                dim3(grid_size), dim3(block_size), 0, stream,
+                input + offset,
+                current_size,
+                output + offset,
+                static_cast<result_type>(initial_value),
+                scan_op,
+                block_prefixes,
+                previous_last_element,
+                new_last_element,
+                i != size_t(0) && ((!Exclusive && number_of_blocks == 1) || Exclusive),
+                number_of_launch > 1
+            );
+            ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("final_scan_kernel", size, start);
+
+            // Swap the last_elements if it's necessary
+            if(number_of_launch > 1)
+            {
+                hipError_t error = ::rocprim::transform(
+                    new_last_element, previous_last_element, 1,
+                    ::rocprim::identity<result_type>(),
+                    stream, debug_synchronous
+                );
+                if(error != hipSuccess) return error;
+            }
+        }
     }
     else
     {
+        if(debug_synchronous)
+        {
+            std::cout << "block_size " << block_size << '\n';
+            std::cout << "number of blocks " << number_of_blocks << '\n';
+            std::cout << "items_per_block " << items_per_block << '\n';
+        }
+
         if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
         hipLaunchKernelGGL(
             HIP_KERNEL_NAME(detail::single_scan_kernel<
@@ -326,10 +410,8 @@ auto scan_impl(void * temporary_storage,
     -> typename std::enable_if<Config::use_lookback, hipError_t>::type
 {
     using input_type = typename std::iterator_traits<InputIterator>::value_type;
-    using result_type = typename std::remove_reference<
-        typename ::rocprim::detail::match_result_type<
-            input_type, BinaryFunction
-        >::type
+    using result_type = typename ::rocprim::detail::match_result_type<
+        input_type, BinaryFunction
     >::type;
 
     using config = Config;
@@ -341,7 +423,13 @@ auto scan_impl(void * temporary_storage,
     constexpr unsigned int block_size = config::block_size;
     constexpr unsigned int items_per_thread = config::items_per_thread;
     constexpr auto items_per_block = block_size * items_per_thread;
-    const unsigned int number_of_blocks = (size + items_per_block - 1)/items_per_block;
+
+    static constexpr size_t size_limit = config::size_limit;
+    static constexpr size_t aligned_size_limit = std::max<size_t>(size_limit - size_limit % items_per_block, items_per_block);
+    size_t limited_size = std::min<size_t>(size, aligned_size_limit);
+    const bool use_limited_size = limited_size == aligned_size_limit;
+
+    unsigned int number_of_blocks = (limited_size + items_per_block - 1)/items_per_block;
 
     // Calculate required temporary storage
     size_t scan_state_bytes = ::rocprim::detail::align_size(
@@ -353,23 +441,20 @@ auto scan_impl(void * temporary_storage,
     {
         // storage_size is never zero
         storage_size = scan_state_bytes + ordered_block_id_bytes;
+
+        if(use_limited_size)
+            storage_size += 2 * sizeof(result_type);
+
         return hipSuccess;
     }
 
     // Start point for time measurements
     std::chrono::high_resolution_clock::time_point start;
-    if(debug_synchronous)
-    {
-        std::cout << "size " << size << '\n';
-        std::cout << "block_size " << block_size << '\n';
-        std::cout << "number of blocks " << number_of_blocks << '\n';
-        std::cout << "items_per_block " << items_per_block << '\n';
-    }
 
     if( number_of_blocks == 0u )
         return hipSuccess;
 
-    if(number_of_blocks > 1)
+    if(number_of_blocks > 1 || use_limited_size)
     {
         // Create and initialize lookback_scan_state obj
         auto scan_state = scan_state_type::create(temporary_storage, number_of_blocks);
@@ -380,13 +465,23 @@ auto scan_impl(void * temporary_storage,
             reinterpret_cast<ordered_block_id_type::id_type*>(ptr + scan_state_bytes)
         );
 
+        // The last element
+        result_type * previous_last_element = nullptr;
+        result_type * new_last_element = nullptr;
+        if(use_limited_size)
+        {
+            ptr += storage_size - sizeof(result_type);
+            new_last_element = reinterpret_cast<result_type*>(ptr);
+            ptr -= sizeof(result_type);
+            previous_last_element = reinterpret_cast<result_type*>(ptr);
+        }
+
         hipDeviceProp_t prop;
         int deviceId;
         static_cast<void>(hipGetDevice(&deviceId));
         static_cast<void>(hipGetDeviceProperties(&prop, deviceId));
 
         if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
-        auto grid_size = (number_of_blocks + block_size - 1)/block_size;
 
 #if HIP_VERSION >= 307
         int asicRevision = prop.asicRevision;
@@ -394,56 +489,110 @@ auto scan_impl(void * temporary_storage,
         int asicRevision = 0;
 #endif
 
-        if (prop.gcnArch == 908 && asicRevision < 2)
+        size_t number_of_launch = (size + limited_size - 1)/limited_size;
+        for (size_t i = 0, offset = 0; i < number_of_launch; i++, offset+=limited_size )
         {
-            hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(init_lookback_scan_state_kernel<scan_state_with_sleep_type>),
-                dim3(grid_size), dim3(block_size), 0, stream,
-                scan_state_with_sleep, number_of_blocks, ordered_bid
-            );
-        } else
-        {
-            hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(init_lookback_scan_state_kernel<scan_state_type>),
-                dim3(grid_size), dim3(block_size), 0, stream,
-                scan_state, number_of_blocks, ordered_bid
-            );
-        }
-        ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("init_lookback_scan_state_kernel", number_of_blocks, start)
+            size_t current_size = std::min<size_t>(size - offset, limited_size);
+            number_of_blocks = (current_size + items_per_block - 1)/items_per_block;
+            auto grid_size = (number_of_blocks + block_size - 1)/block_size;
 
-        if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
-        grid_size = number_of_blocks;
-        if (prop.gcnArch == 908 && asicRevision < 2)
-        {
-            hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(lookback_scan_kernel<
-                    Exclusive, // flag for exclusive scan operation
-                    config, // kernel configuration (block size, ipt)
-                    InputIterator, OutputIterator,
-                    BinaryFunction, result_type, scan_state_with_sleep_type
-                >),
-                dim3(grid_size), dim3(block_size), 0, stream,
-                input, output, size, static_cast<result_type>(initial_value),
-                scan_op, scan_state_with_sleep, number_of_blocks, ordered_bid
-            );
-        } else
-        {
-            hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(lookback_scan_kernel<
-                    Exclusive, // flag for exclusive scan operation
-                    config, // kernel configuration (block size, ipt)
-                    InputIterator, OutputIterator,
-                    BinaryFunction, result_type, scan_state_type
-                >),
-                dim3(grid_size), dim3(block_size), 0, stream,
-                input, output, size, static_cast<result_type>(initial_value),
-                scan_op, scan_state, number_of_blocks, ordered_bid
-            );
+            if(debug_synchronous)
+            {
+                std::cout << "use_limited_size " << use_limited_size << '\n';
+                std::cout << "aligned_size_limit " << aligned_size_limit << '\n';
+                std::cout << "number_of_launch " << number_of_launch << '\n';
+                std::cout << "index " << i << '\n';
+                std::cout << "size " << current_size << '\n';
+                std::cout << "block_size " << block_size << '\n';
+                std::cout << "number of blocks " << number_of_blocks << '\n';
+                std::cout << "items_per_block " << items_per_block << '\n';
+            }
+
+            if (prop.gcnArch == 908 && asicRevision < 2)
+            {
+                hipLaunchKernelGGL(
+                    HIP_KERNEL_NAME(init_lookback_scan_state_kernel<scan_state_with_sleep_type>),
+                    dim3(grid_size), dim3(block_size), 0, stream,
+                    scan_state_with_sleep, number_of_blocks, ordered_bid
+                );
+            } else
+            {
+                hipLaunchKernelGGL(
+                    HIP_KERNEL_NAME(init_lookback_scan_state_kernel<scan_state_type>),
+                    dim3(grid_size), dim3(block_size), 0, stream,
+                    scan_state, number_of_blocks, ordered_bid
+                );
+            }
+            ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("init_lookback_scan_state_kernel", number_of_blocks, start)
+
+            if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
+            grid_size = number_of_blocks;
+            if (prop.gcnArch == 908 && asicRevision < 2)
+            {
+                hipLaunchKernelGGL(
+                    HIP_KERNEL_NAME(lookback_scan_kernel<
+                        Exclusive, // flag for exclusive scan operation
+                        config, // kernel configuration (block size, ipt)
+                        InputIterator, OutputIterator,
+                        BinaryFunction, result_type, scan_state_with_sleep_type
+                    >),
+                    dim3(grid_size), dim3(block_size), 0, stream,
+                    input + offset, output + offset, current_size, static_cast<result_type>(initial_value),
+                    scan_op, scan_state_with_sleep, number_of_blocks, ordered_bid,
+                    previous_last_element, new_last_element,
+                    i != size_t(0), number_of_launch > 1
+                );
+            }
+            else
+            {
+                if(debug_synchronous)
+                {
+                    std::cout << "use_limited_size " << use_limited_size << '\n';
+                    std::cout << "aligned_size_limit " << aligned_size_limit << '\n';
+                    std::cout << "size " << current_size << '\n';
+                    std::cout << "block_size " << block_size << '\n';
+                    std::cout << "number of blocks " << number_of_blocks << '\n';
+                    std::cout << "items_per_block " << items_per_block << '\n';
+                }
+
+                hipLaunchKernelGGL(
+                    HIP_KERNEL_NAME(lookback_scan_kernel<
+                        Exclusive, // flag for exclusive scan operation
+                        config, // kernel configuration (block size, ipt)
+                        InputIterator, OutputIterator,
+                        BinaryFunction, result_type, scan_state_type
+                    >),
+                    dim3(grid_size), dim3(block_size), 0, stream,
+                    input + offset, output + offset, current_size, static_cast<result_type>(initial_value),
+                    scan_op, scan_state, number_of_blocks, ordered_bid,
+                    previous_last_element, new_last_element,
+                    i != size_t(0), number_of_launch > 1
+                );
+            }
+            ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("lookback_scan_kernel", current_size, start)
+
+            // Swap the last_elements
+            if(number_of_launch > 1)
+            {
+                hipError_t error = ::rocprim::transform(
+                    new_last_element, previous_last_element, 1,
+                    ::rocprim::identity<result_type>(),
+                    stream, debug_synchronous
+                );
+                if(error != hipSuccess) return error;
+            }
         }
-        ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR("lookback_scan_kernel", size, start)
     }
     else
     {
+        if(debug_synchronous)
+        {
+            std::cout << "size " << size << '\n';
+            std::cout << "block_size " << block_size << '\n';
+            std::cout << "number of blocks " << number_of_blocks << '\n';
+            std::cout << "items_per_block " << items_per_block << '\n';
+        }
+
         if(debug_synchronous) start = std::chrono::high_resolution_clock::now();
         hipLaunchKernelGGL(
             HIP_KERNEL_NAME(single_scan_kernel<

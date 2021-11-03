@@ -62,9 +62,11 @@ typedef ::testing::Types<
     params<double, int, true>,
     params<float, int>,
     params<rocprim::half, long long>,
+    params<rocprim::bfloat16, long long>,
     params<int8_t, int8_t>,
     params<uint8_t, uint8_t>,
     params<rocprim::half, rocprim::half>,
+    params<rocprim::bfloat16, rocprim::bfloat16>,
     params<int, test_utils::custom_test_type<float>>,
 
     // start_bit and end_bit
@@ -76,10 +78,15 @@ typedef ::testing::Types<
     params<unsigned int, double, true, 4, 21>,
     params<unsigned int, rocprim::half, true, 0, 15>,
     params<unsigned short, rocprim::half, false, 3, 22>,
+    params<unsigned int, rocprim::bfloat16, true, 0, 12>,
+    params<unsigned short, rocprim::bfloat16, false, 3, 11>,
     params<unsigned long long, char, false, 8, 20>,
     params<unsigned short, test_utils::custom_test_type<double>, false, 8, 11>,
 
     // huge sizes to check correctness of more than 1 block per batch
+    params<int, char, false, 0, 32, true>,
+    params<int, char, true, 0, 32, true>,
+    params<float, char, false, 0, 32, true>,
     params<float, char, true, 0, 32, true>
 > Params;
 
@@ -87,7 +94,7 @@ TYPED_TEST_SUITE(RocprimDeviceRadixSort, Params);
 
 std::vector<size_t> get_sizes(int seed_value)
 {
-    std::vector<size_t> sizes = { 0, 1, 10, 53, 211, 1024, 2345, 4096, 34567, (1 << 16) - 1220, (1 << 23) - 76543 };
+    std::vector<size_t> sizes = { 0, 1, 10, 53, 211, 1024, 2049, 2345, 4096, 8196, 34567, (1 << 16) - 1220, (1 << 23) - 76543 };
     const std::vector<size_t> random_sizes = test_utils::get_random_data<size_t>(10, 1, 100000, seed_value);
     sizes.insert(sizes.end(), random_sizes.begin(), random_sizes.end());
     return sizes;
@@ -143,6 +150,33 @@ TYPED_TEST(RocprimDeviceRadixSort, SortKeys)
                     std::numeric_limits<key_type>::max(),
                     seed_index
                 );
+            }
+            // put +0.0 and -0.0
+            if( std::is_same<float, key_type>::value || std::is_same<double, key_type>::value )
+            {
+                if(size >= 1) keys_input[0] = key_type( 0.0);
+                if(size >= 2) keys_input[1] = key_type(-0.0);
+                if(size >= 3) keys_input[2] = key_type( 0.0);
+                if(size >= 4) keys_input[3] = std::numeric_limits<key_type>::signaling_NaN();
+
+                if( size > 20ul )
+                {
+                    keys_input[size / 2 + 1] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 2 + 2] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 2 + 3] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 2 + 4] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 2 + 5] = std::numeric_limits<key_type>::signaling_NaN();
+                }
+
+
+                if( size > 100ul )
+                {
+                    keys_input[size / 3 + 1] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 3 + 2] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 3 + 3] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 3 + 4] = std::numeric_limits<key_type>::signaling_NaN();
+                    keys_input[size / 3 + 5] = std::numeric_limits<key_type>::signaling_NaN();
+                }
             }
 
             key_type * d_keys_input;
@@ -207,7 +241,6 @@ TYPED_TEST(RocprimDeviceRadixSort, SortKeys)
                     )
                 );
             }
-
 
             std::vector<key_type> keys_output(size);
             HIP_CHECK(
@@ -284,8 +317,16 @@ TYPED_TEST(RocprimDeviceRadixSort, SortPairs)
                 );
             }
 
+            if( std::is_same<float, key_type>::value || std::is_same<double, key_type>::value )
+            {
+                if(size >= 1) keys_input[0] = key_type( 0.0);
+                if(size >= 2) keys_input[1] = key_type(-0.0);
+                if(size >= 3) keys_input[2] = key_type( 0.0);
+                if(size >= 4) keys_input[3] = std::numeric_limits<key_type>::signaling_NaN();
+            }
+
             std::vector<value_type> values_input(size);
-            std::iota(values_input.begin(), values_input.end(), 0);
+            test_utils::iota(values_input.begin(), values_input.end(), 0);
 
             key_type * d_keys_input;
             key_type * d_keys_output;
@@ -592,7 +633,7 @@ TYPED_TEST(RocprimDeviceRadixSort, SortPairsDoubleBuffer)
             }
 
             std::vector<value_type> values_input(size);
-            std::iota(values_input.begin(), values_input.end(), 0);
+            test_utils::iota(values_input.begin(), values_input.end(), 0);
 
             key_type * d_keys_input;
             key_type * d_keys_output;

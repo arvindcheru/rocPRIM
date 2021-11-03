@@ -32,15 +32,10 @@
 
 
 #include "../config.hpp"
-// #include "../../../thread/thread_operators.cuh"
+#include "../functional.hpp"
 
 BEGIN_ROCPRIM_NAMESPACE
 
-template <int A>
-struct Int2Type
-{
-    enum {VALUE = A};
-};
  /**
   * \addtogroup UtilModule
   * @{
@@ -65,7 +60,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_exclusive(
      T                   inclusive,
      T                   exclusive,
@@ -101,7 +96,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_exclusive(
      T           *input,                 ///< [in] Input array
      T           *output,                ///< [out] Output array (may be aliased to \p input)
@@ -134,7 +129,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_exclusive(
      T           (&input)[LENGTH],       ///< [in] Input array
      T           (&output)[LENGTH],      ///< [out] Output array (may be aliased to \p input)
@@ -158,7 +153,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_inclusive(
      T                   inclusive,
      T                   *input,                 ///< [in] Input array
@@ -189,7 +184,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_inclusive(
      T           *input,
      T           *output,
@@ -215,7 +210,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_inclusive(
      T           (&input)[LENGTH],       ///< [in] Input array
      T           (&output)[LENGTH],      ///< [out] Output array (may be aliased to \p input)
@@ -239,7 +234,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_inclusive(
      T           *input,                 ///< [in] Input array
      T           *output,                ///< [out] Output array (may be aliased to \p input)
@@ -273,7 +268,7 @@ struct Int2Type
      int         LENGTH,
      typename    T,
      typename    ScanOp>
- ROCPRIM_DEVICE inline
+ ROCPRIM_DEVICE ROCPRIM_INLINE
  T thread_scan_inclusive(
      T           (&input)[LENGTH],
      T           (&output)[LENGTH],

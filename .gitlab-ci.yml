@@ -100,6 +100,12 @@ variables:
     paths:
       - $CMAKE_LATEST_PATH
 
+.deps:doc:
+  stage: test:doc
+  before_script:
+    - $SUDO_CMD apt update -qq
+    - $SUDO_CMD apt install -y -qq doxygen
+
 build:cmake-latest:
   extends:
     - .deps:cmake-latest
@@ -116,7 +122,7 @@ build:cmake-latest:
       -D BUILD_TEST=ON
       -D BUILD_EXAMPLE=ON
       -D BUILD_BENCHMARK=OFF
-      -D AMDGPU_TEST_TARGETS="gfx803;gfx900;gfx906"
+      -D AMDGPU_TEST_TARGETS="gfx803;gfx900:xnack-;gfx906:xnack-"
       -S $CI_PROJECT_DIR
       -B $BUILD_LATEST_DIR
     - cmake
@@ -177,7 +183,7 @@ build:cmake-minimum:
       -D BUILD_EXAMPLE=ON
       -D BUILD_BENCHMARK=ON
       -D DISABLE_WERROR=OFF
-      -D AMDGPU_TEST_TARGETS="gfx803;gfx900;gfx906"
+      -D AMDGPU_TEST_TARGETS="gfx803;gfx900:xnack-;gfx906:xnack-"
       -B $BUILD_MINIMUM_DIR
       ../../.
     - cmake
@@ -252,7 +258,7 @@ build:benchmark:
       -D BUILD_EXAMPLE=OFF
       -D BUILD_BENCHMARK=ON
       -D DISABLE_WERROR=OFF
-      -D AMDGPU_TARGETS="gfx803;gfx900;gfx906"
+      -D AMDGPU_TARGETS="gfx803;gfx900:xnack-;gfx906:xnack-"
       ..
     - cmake
       --build .
@@ -339,6 +345,8 @@ test:deb:
   extends:
     - .deps:cmake-minimum
   script:
+    - $SUDO_CMD apt update -qq
+    - $SUDO_CMD apt install -y -qq rocm-core
     - $SUDO_CMD dpkg -i $PACKAGE_DIR/rocprim*.deb
     - mkdir -p package_test && cd package_test
     - cmake
@@ -350,3 +358,15 @@ test:deb:
       --build .
     - $SUDO_CMD ctest --output-on-failure --repeat-until-fail 2
     - $SUDO_CMD dpkg -r rocprim
+  allow_failure: true
+
+test:doc:
+  stage: test
+  needs: []
+  before_script:
+    - $SUDO_CMD rm /etc/apt/sources.list.d/rocm.list
+    - $SUDO_CMD apt-get update -qq
+    - $SUDO_CMD apt-get install -y -qq doxygen
+  script:
+    - cd doc
+    - $SUDO_CMD doxygen Doxyfile

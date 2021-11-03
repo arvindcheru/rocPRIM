@@ -51,7 +51,7 @@ template<
     unsigned int ItemsPerThread,
     class BinaryFunction
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto single_scan_block_scan(T (&input)[ItemsPerThread],
                             T (&output)[ItemsPerThread],
                             T initial_value,
@@ -76,7 +76,7 @@ template<
     unsigned int ItemsPerThread,
     class BinaryFunction
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto single_scan_block_scan(T (&input)[ItemsPerThread],
                             T (&output)[ItemsPerThread],
                             T initial_value,
@@ -102,7 +102,7 @@ template<
     class BinaryFunction,
     class ResultType
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 void single_scan_kernel_impl(InputIterator input,
                              const size_t input_size,
                              ResultType initial_value,
@@ -173,7 +173,7 @@ template<
     class BinaryFunction,
     class ResultType
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 void block_reduce_kernel_impl(InputIterator input,
                               BinaryFunction scan_op,
                               ResultType * block_prefixes)
@@ -238,7 +238,7 @@ template<
     class ResultType,
     class BinaryFunction
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto final_scan_block_scan(const unsigned int flat_block_id,
                            T (&input)[ItemsPerThread],
                            T (&output)[ItemsPerThread],
@@ -273,7 +273,7 @@ template<
     class ResultType,
     class BinaryFunction
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 auto final_scan_block_scan(const unsigned int flat_block_id,
                            T (&input)[ItemsPerThread],
                            T (&output)[ItemsPerThread],
@@ -320,13 +320,17 @@ template<
     class BinaryFunction,
     class ResultType
 >
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 void final_scan_kernel_impl(InputIterator input,
                             const size_t input_size,
                             OutputIterator output,
-                            const ResultType initial_value,
+                            ResultType initial_value,
                             BinaryFunction scan_op,
-                            ResultType * block_prefixes)
+                            ResultType * block_prefixes,
+                            ResultType * previous_last_element = nullptr,
+                            ResultType * new_last_element = nullptr,
+                            bool override_first_value = false,
+                            bool save_last_value = false)
 {
     constexpr unsigned int block_size = Config::block_size;
     constexpr unsigned int items_per_thread = Config::items_per_thread;
@@ -389,6 +393,16 @@ void final_scan_kernel_impl(InputIterator input,
     }
     ::rocprim::syncthreads(); // sync threads to reuse shared memory
 
+    // override_first_value only true when the first chunk already processed
+    // and input iterator starts from an offset.
+    if(override_first_value && flat_block_id == 0)
+    {
+        if(Exclusive)
+            initial_value = scan_op(previous_last_element[0], *(input-1));
+        else if(::rocprim::detail::block_thread_id<0>() == 0)
+            values[0] = scan_op(previous_last_element[0], values[0]);
+    }
+
     final_scan_block_scan<Exclusive, block_scan_type>(
         flat_block_id,
         values, // input
@@ -410,6 +424,19 @@ void final_scan_kernel_impl(InputIterator input,
                 valid_in_last_block,
                 storage.store
             );
+
+        if(save_last_value &&
+           (::rocprim::detail::block_thread_id<0>() ==
+           (valid_in_last_block - 1) / items_per_thread))
+        {
+            for(unsigned int i = 0; i < items_per_thread; i++)
+            {
+                if(i == (valid_in_last_block - 1) % items_per_thread)
+                {
+                    new_last_element[0] = values[i];
+                }
+            }
+        }
     }
     else
     {

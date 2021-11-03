@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+set(AMDGPU_TEST_TARGETS "" CACHE STRING "List of specific device types to test for") # Leave empty for default system device
+
 function(add_rocprim_test TEST_NAME TEST_SOURCES)
   list(GET TEST_SOURCES 0 TEST_MAIN_SOURCE)
   get_filename_component(TEST_TARGET ${TEST_MAIN_SOURCE} NAME_WE)
@@ -77,7 +79,7 @@ function(add_rocprim_test TEST_NAME TEST_SOURCES)
   )
   if(AMDGPU_TEST_TARGETS)
     foreach(AMDGPU_TARGET IN LISTS AMDGPU_TEST_TARGETS)
-      add_test("${AMDGPU_TARGET}-${TEST_NAME}" ${TEST_TARGET})
+      add_relative_test("${AMDGPU_TARGET}-${TEST_NAME}" ${TEST_TARGET})
       set_tests_properties("${AMDGPU_TARGET}-${TEST_NAME}"
           PROPERTIES
               RESOURCE_GROUPS "1,${AMDGPU_TARGET}:1"
@@ -85,11 +87,25 @@ function(add_rocprim_test TEST_NAME TEST_SOURCES)
       )
     endforeach()
   else()
-      add_test(${TEST_NAME} ${TEST_TARGET})
+      add_relative_test(${TEST_NAME} ${TEST_TARGET})
       set_tests_properties(${TEST_NAME}
           PROPERTIES
               LABELS "hip"
       )
+  endif()
+  if (WIN32 AND NOT DEFINED DLLS_COPIED_2)
+    set(DLLS_COPIED_2 "YES")
+    set(DLLS_COPIED_2 ${DLLS_COPIED_2} PARENT_SCOPE)
+    # for now adding in all .dll as dependency chain is not cmake based on win32
+    file( GLOB third_party_dlls
+    LIST_DIRECTORIES ON
+    CONFIGURE_DEPENDS
+    ${HIP_DIR}/bin/*.dll
+    ${CMAKE_SOURCE_DIR}/rtest.*
+    )
+    foreach( file_i ${third_party_dlls})
+      add_custom_command( TARGET ${TEST_TARGET} POST_BUILD COMMAND ${CMAKE_COMMAND} ARGS -E copy_if_different ${file_i} ${PROJECT_BINARY_DIR}/test/rocprim )
+    endforeach( file_i )
   endif()
 endfunction()
 
@@ -119,6 +135,7 @@ add_rocprim_test("rocprim.device_merge" test_device_merge.cpp)
 add_rocprim_test("rocprim.device_merge_sort" test_device_merge_sort.cpp)
 add_rocprim_test("rocprim.device_partition" test_device_partition.cpp)
 add_rocprim_test("rocprim.device_radix_sort" test_device_radix_sort.cpp)
+add_rocprim_test("rocprim.device_radix_sort_floats" test_device_radix_sort_floats.cpp)
 add_rocprim_test("rocprim.device_reduce_by_key" test_device_reduce_by_key.cpp)
 add_rocprim_test("rocprim.device_reduce" test_device_reduce.cpp)
 add_rocprim_test("rocprim.device_run_length_encode" test_device_run_length_encode.cpp)

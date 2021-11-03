@@ -35,8 +35,6 @@ namespace detail
 {
 
 #ifdef __HIP_CPU_RT__
-// Taken from the notes of https://en.cppreference.com/w/cpp/numeric/bit_cast
-//
 // TODO: consider adding macro checks relaying to std::bit_cast when compiled
 //       using C++20.
 template <class To, class From>
@@ -55,7 +53,7 @@ bit_cast(const From& src) noexcept
 #endif
 
 template<class T, class ShuffleOp>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 typename std::enable_if<std::is_trivially_copyable<T>::value && (sizeof(T) % sizeof(int) == 0), T>::type
 warp_shuffle_op(const T& input, ShuffleOp&& op)
 {
@@ -82,7 +80,7 @@ warp_shuffle_op(const T& input, ShuffleOp&& op)
 }
 
 template<class T, class ShuffleOp>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 typename std::enable_if<!(std::is_trivially_copyable<T>::value && (sizeof(T) % sizeof(int) == 0)), T>::type
 warp_shuffle_op(const T& input, ShuffleOp&& op)
 {
@@ -112,7 +110,7 @@ warp_shuffle_op(const T& input, ShuffleOp&& op)
 }
 
 template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = false>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T warp_move_dpp(const T& input)
 {
     return detail::warp_shuffle_op(
@@ -151,7 +149,7 @@ T warp_move_dpp(const T& input)
 /// \param src_lane - warp if of a thread whose \p input should be returned
 /// \param width - logical warp width
 template<class T>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T warp_shuffle(const T& input, const int src_lane, const int width = device_warp_size())
 {
     return detail::warp_shuffle_op(
@@ -176,7 +174,7 @@ T warp_shuffle(const T& input, const int src_lane, const int width = device_warp
 /// \param delta - offset for calculating source lane id
 /// \param width - logical warp width
 template<class T>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T warp_shuffle_up(const T& input, const unsigned int delta, const int width = device_warp_size())
 {
     return detail::warp_shuffle_op(
@@ -201,7 +199,7 @@ T warp_shuffle_up(const T& input, const unsigned int delta, const int width = de
 /// \param delta - offset for calculating source lane id
 /// \param width - logical warp width
 template<class T>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T warp_shuffle_down(const T& input, const unsigned int delta, const int width = device_warp_size())
 {
     return detail::warp_shuffle_op(
@@ -225,7 +223,7 @@ T warp_shuffle_down(const T& input, const unsigned int delta, const int width = 
 /// \param lane_mask - mask used for calculating source lane id
 /// \param width - logical warp width
 template<class T>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T warp_shuffle_xor(const T& input, const int lane_mask, const int width = device_warp_size())
 {
     return detail::warp_shuffle_op(

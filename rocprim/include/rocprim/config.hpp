@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +27,22 @@
 #define END_ROCPRIM_NAMESPACE \
     } /* rocprim */
 
+#include <limits>
+
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
+#include <hip/hip_bfloat16.h>
 
 #ifndef ROCPRIM_DEVICE
     #define ROCPRIM_DEVICE __device__
     #define ROCPRIM_HOST __host__
     #define ROCPRIM_HOST_DEVICE __host__ __device__
     #define ROCPRIM_SHARED_MEMORY __shared__
+    #ifdef WIN32
+    #define ROCPRIM_KERNEL __global__ static
+    #else
+    #define ROCPRIM_KERNEL __global__
+    #endif
     // TODO: These paremeters should be tuned for NAVI in the close future.
     #ifndef ROCPRIM_DEFAULT_MAX_BLOCK_SIZE
         #define ROCPRIM_DEFAULT_MAX_BLOCK_SIZE 256
@@ -42,6 +50,14 @@
     #ifndef ROCPRIM_DEFAULT_MIN_WARPS_PER_EU
         #define ROCPRIM_DEFAULT_MIN_WARPS_PER_EU 1
     #endif
+    // Currently HIP on Windows has a bug involving inline device functions generating
+    // local memory/register allocation errors during compilation.  Current workaround is to
+    // use __attribute__((always_inline)) for the affected functions
+    #ifdef WIN32
+      #define ROCPRIM_INLINE inline __attribute__((always_inline))
+    #else
+      #define ROCPRIM_INLINE inline
+    #endif    
 #endif
 
 #if ( defined(__gfx801__) || \
@@ -99,6 +115,10 @@
 #else
 #define ROCPRIM_UNROLL _Pragma("unroll")
 #define ROCPRIM_NO_UNROLL _Pragma("nounroll")
+#endif
+
+#ifndef ROCPRIM_GRID_SIZE_LIMIT
+#define ROCPRIM_GRID_SIZE_LIMIT std::numeric_limits<unsigned int>::max()
 #endif
 
 #endif // ROCPRIM_CONFIG_HPP_

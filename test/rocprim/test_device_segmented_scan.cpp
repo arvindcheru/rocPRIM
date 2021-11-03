@@ -28,6 +28,8 @@
 // required test headers
 #include "test_utils_types.hpp"
 
+#include <numeric>
+
 template<
     class Input,
     class Output,
@@ -68,6 +70,9 @@ typedef ::testing::Types<
     params<custom_int2, custom_short2, rocprim::maximum<custom_int2>, 10, 1000, 10000>,
     params<float, double, rocprim::maximum<double>, 50, 2, 10>,
     params<float, float, rocprim::plus<float>, 123, 100, 200, true>,
+    //TODO: Disable bfloat16 test until the follwing PR merge: https://github.com/ROCm-Developer-Tools/HIP/pull/2303
+    //params<rocprim::bfloat16, float, rocprim::plus<float>, 0, 10, 300, true>,
+    params<rocprim::bfloat16, rocprim::bfloat16, test_utils::bfloat16_minimum, 0, 1000, 30000>,
 #ifndef __HIP__
     // hip-clang does not allow to convert half to float
     params<rocprim::half, float, rocprim::plus<float>, 0, 10, 300, true>,
@@ -248,7 +253,7 @@ TYPED_TEST(RocprimDeviceSegmentedScan, ExclusiveScan)
     using result_type = output_type;
     using offset_type = unsigned int;
 
-    const input_type init = TestFixture::params::init;
+    const input_type init = input_type{TestFixture::params::init};
     const bool debug_synchronous = false;
     scan_op_type scan_op;
 
@@ -538,7 +543,7 @@ TYPED_TEST(RocprimDeviceSegmentedScan, ExclusiveScanUsingHeadFlags)
     using flag_type = unsigned int;
     using output_type = typename TestFixture::params::output_type;
     using scan_op_type = typename TestFixture::params::scan_op_type;
-    const input_type init = TestFixture::params::init;
+    const input_type init = input_type{TestFixture::params::init};
     const bool debug_synchronous = false;
 
     hipStream_t stream = 0; // default stream
@@ -641,7 +646,7 @@ TYPED_TEST(RocprimDeviceSegmentedScan, ExclusiveScanUsingHeadFlags)
                     rocprim::make_tuple(expected.begin(), rocprim::make_discard_iterator())
                 ),
                 [scan_op](const rocprim::tuple<output_type, flag_type>& t1,
-                        const rocprim::tuple<output_type, flag_type>& t2)
+                          const rocprim::tuple<output_type, flag_type>& t2)
                     -> rocprim::tuple<output_type, flag_type>
                 {
                     if(!rocprim::get<1>(t2))

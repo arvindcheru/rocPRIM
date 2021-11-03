@@ -80,7 +80,7 @@ public:
     using storage_type = detail::raw_storage<storage_type_>;
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T input,
                         T& output,
                         storage_type& storage,
@@ -93,7 +93,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T input,
                         T& output,
                         BinaryFunction scan_op)
@@ -103,7 +103,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T input,
                         T& output,
                         T& reduction,
@@ -117,7 +117,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T input,
                         T& output,
                         T& reduction,
@@ -128,7 +128,7 @@ public:
     }
 
     template<class PrefixCallback, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T input,
                         T& output,
                         storage_type& storage,
@@ -149,7 +149,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         storage_type& storage,
@@ -178,6 +178,7 @@ public:
         {
             output[0] = scan_op(thread_input, input[0]);
         }
+
         // Final thread-local scan
         ROCPRIM_UNROLL
         for(unsigned int i = 1; i < ItemsPerThread; i++)
@@ -187,7 +188,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         BinaryFunction scan_op)
@@ -197,7 +198,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T& reduction,
@@ -211,7 +212,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T& reduction,
@@ -226,7 +227,7 @@ public:
         unsigned int ItemsPerThread,
         class BinaryFunction
     >
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void inclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         storage_type& storage,
@@ -275,7 +276,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T input,
                         T& output,
                         T init,
@@ -289,7 +290,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T input,
                         T& output,
                         T init,
@@ -302,7 +303,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T input,
                         T& output,
                         T init,
@@ -319,7 +320,7 @@ public:
     }
 
     template<class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T input,
                         T& output,
                         T init,
@@ -333,7 +334,7 @@ public:
     }
 
     template<class PrefixCallback, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T input,
                         T& output,
                         storage_type& storage,
@@ -357,7 +358,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T init,
@@ -401,7 +402,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T init,
@@ -412,7 +413,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T init,
@@ -427,7 +428,7 @@ public:
     }
 
     template<unsigned int ItemsPerThread, class BinaryFunction>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         T init,
@@ -443,7 +444,7 @@ public:
         unsigned int ItemsPerThread,
         class BinaryFunction
     >
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void exclusive_scan(T (&input)[ItemsPerThread],
                         T (&output)[ItemsPerThread],
                         storage_type& storage,
@@ -495,7 +496,7 @@ public:
 
 private:
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto inclusive_scan_impl(const unsigned int flat_tid,
                              T input,
                              T& output,
@@ -524,7 +525,7 @@ private:
 
     // When BlockSize is less than warp_size we dont need the extra prefix calculations.
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto inclusive_scan_impl(unsigned int flat_tid,
                              T input,
                              T& output,
@@ -550,7 +551,7 @@ private:
 
     // Exclusive scan with initial value when BlockSize is bigger than warp_size
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto exclusive_scan_impl(const unsigned int flat_tid,
                              T input,
                              T& output,
@@ -590,7 +591,7 @@ private:
     // Exclusive scan with initial value when BlockSize is less than warp_size.
     // When BlockSize is less than warp_size we dont need the extra prefix calculations.
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto exclusive_scan_impl(const unsigned int flat_tid,
                              T input,
                              T& output,
@@ -626,7 +627,7 @@ private:
 
     // Exclusive scan with unknown initial value
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto exclusive_scan_impl(const unsigned int flat_tid,
                              T input,
                              T& output,
@@ -662,7 +663,7 @@ private:
     // Exclusive scan with unknown initial value, when BlockSize less than warp_size.
     // When BlockSize is less than warp_size we dont need the extra prefix calculations.
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     auto exclusive_scan_impl(const unsigned int flat_tid,
                              T input,
                              T& output,
@@ -689,7 +690,7 @@ private:
 
     // i-th warp will have its prefix stored in storage_.warp_prefixes[i-1]
     template<class BinaryFunction, unsigned int BlockSize_ = BlockSize>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     void calculate_warp_prefixes(const unsigned int flat_tid,
                                  const unsigned int warp_id,
                                  T inclusive_input,
@@ -720,7 +721,7 @@ private:
 
     // THIS OVERWRITES storage_.warp_prefixes[warps_no_ - 1]
     template<class PrefixCallback>
-    ROCPRIM_DEVICE inline
+    ROCPRIM_DEVICE ROCPRIM_INLINE
     T get_block_prefix(const unsigned int flat_tid,
                        const unsigned int warp_id,
                        const T reduction,

@@ -2,7 +2,37 @@
 
 Full documentation for rocPRIM is available at [https://codedocs.xyz/ROCmSoftwarePlatform/rocPRIM/](https://codedocs.xyz/ROCmSoftwarePlatform/rocPRIM/)
 
-## [rocPRIM-2.10.11 for ROCm 4.4.0]
+## [Unreleased rocPRIM-2.10.12 for ROCm 5.0.0]
+### Fixed
+- Enable bfloat16 tests and reduce threshold for bfloat16
+- Fix device scan limit_size feature
+### Added
+- Added scan size limit feature
+- Added reduce size limit feature
+- Added transform size limit feature
+- Add block_load_striped and block_store_striped
+### Changed
+- size_limit for scan, reduce and transform can now be set in the config struct instead of a parameter
+- Revert old Fiji workaround, because they solved the issue at compiler side
+- Update README cmake minimum version number
+### Known issues
+- Unit tests may soft hang on MI200 when running in hipMallocManaged mode.
+- block_histogram, device_scan unit tests failing for HIP on Windows
+- ReduceEmptyInput cause random faulire with bfloat16
+
+## [Unreleased rocPRIM-2.10.11 for ROCm 4.5.0]
+### Added
+- Initial HIP on Windows support. See README for instructions on how to build and install.
+- bfloat16 support added.
+### Changed
+- Packaging split into a runtime package called rocprim and a development package called rocprim-devel. The development package depends on runtime. The runtime package suggests the development package for all supported OSes except CentOS 7 to aid in the transition. The suggests feature in packaging is introduced as a deprecated feature and will be removed in a future rocm release.
+    - As rocPRIM is a header-only library, the runtime package is an empty placeholder used to aid in the transition. This package is also a deprecated feature and will be removed in a future rocm release.
+### Known issues
+- Unit tests may soft hang on MI200 when running in hipMallocManaged mode.
+### Deprecated
+- The warp_size() function is now deprecated; please switch to host_warp_size() and device_warp_size() for host and device references respectively.
+
+## [Unreleased rocPRIM-2.10.11 for ROCm 4.4.0]
 ### Added
 - Code coverage tools build option
 - Address sanitizer build option
@@ -10,6 +40,7 @@ Full documentation for rocPRIM is available at [https://codedocs.xyz/ROCmSoftwar
 - Experimental [HIP-CPU](https://github.com/ROCm-Developer-Tools/HIP-CPU) support; build using GCC/Clang/MSVC on Win/Linux. It is work in progress, many algorithms still known to fail.
 ### Optimizations
 - Added single tile radix sort for smaller sizes.
+- Improved performance for radix sort for larger element sizes.
 ### Deprecated
 - The warp_size() function is now deprecated; please switch to host_warp_size() and device_warp_size() for host and device references respectively.
 

@@ -52,7 +52,7 @@ template<
     class InequalityOp,
     class OffsetLookbackScanState
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void partition_kernel(InputIterator input,
                       FlagIterator flags,
@@ -72,7 +72,7 @@ void partition_kernel(InputIterator input,
 }
 
 template<class OffsetLookBackScanState>
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void init_offset_scan_state_kernel(OffsetLookBackScanState offset_scan_state,
                                    const unsigned int number_of_blocks,
@@ -96,7 +96,7 @@ void init_offset_scan_state_kernel(OffsetLookBackScanState offset_scan_state,
 
 #define ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR(name, size, start) \
     { \
-        auto _error = hipPeekAtLastError(); \
+        auto _error = hipGetLastError(); \
         if(_error != hipSuccess) return _error; \
         if(debug_synchronous) \
         { \

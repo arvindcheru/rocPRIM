@@ -107,12 +107,11 @@ ROCPRIM_ASM_THREAD_LOAD_GROUP(load_cs, "", "");
 /// \tparam MODIFIER        - Value in enum for determine which type of cache store modifier to be used
 /// \tparam InputIteratorT - Type of Output Iterator
 /// \param itr [in]         - Iterator to location where data is to be stored
-/// \param val [in]         - Data to be stored
 /// \return Data that is loaded from memory
 template <
     cache_load_modifier MODIFIER = load_default,
     typename InputIteratorT>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 typename std::iterator_traits<InputIteratorT>::value_type
 thread_load(InputIteratorT itr)
 {
@@ -129,7 +128,7 @@ thread_load(InputIteratorT itr)
 template <
     cache_load_modifier MODIFIER = load_default,
     typename T>
-ROCPRIM_DEVICE inline
+ROCPRIM_DEVICE ROCPRIM_INLINE
 T thread_load(T* ptr)
 {
 #ifndef __HIP_CPU_RT__

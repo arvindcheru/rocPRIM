@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SORT_HPP_
-#define ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SORT_HPP_
+#ifndef ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SINGLE_SORT_HPP_
+#define ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SINGLE_SORT_HPP_
 
 #include "../detail/device_radix_sort.hpp"
 
@@ -30,7 +30,7 @@ namespace detail
 
 #define ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR(name, size, start) \
     { \
-        auto _error = hipPeekAtLastError(); \
+        auto _error = hipGetLastError(); \
         if(_error != hipSuccess) return _error; \
         if(debug_synchronous) \
         { \
@@ -52,7 +52,7 @@ namespace detail
         class ValuesInputIterator,
         class ValuesOutputIterator
     >
-    __global__
+    ROCPRIM_KERNEL
    __launch_bounds__(BlockSize)
    void sort_single_kernel(KeysInputIterator    keys_input,
                            KeysOutputIterator   keys_output,
@@ -1008,4 +1008,4 @@ namespace detail
 
 END_ROCPRIM_NAMESPACE
 
-#endif // ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SORT_HPP_
+#endif // ROCPRIM_DEVICE_SPECIALIZATION_DEVICE_RADIX_SINGLE_SORT_HPP_

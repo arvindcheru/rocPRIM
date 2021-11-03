@@ -29,12 +29,27 @@ def runTestCommand (platform, project)
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
     String centos = platform.jenkinsLabel.contains('centos') ? '3' : ''
 
-    def testCommand = "ctest${centos} --output-on-failure"
+    def testCommand = "ctest${centos} --output-on-failure "
+    def hmmTestCommand = ''
+    def testCommandExclude = "--exclude-regex rocprim.device_scan"
+    def hmmExcludeRegex = /(rocprim.device_merge|rocprim.device_scan|rocprim.device_run_length_encode|rocprim.device_segmented_radix_sort|rocprim.device_partition|rocprim.device_radix_sort)/
+    def hmmTestCommandExclude = "--exclude-regex \"${hmmExcludeRegex}\""
+    if (platform.jenkinsLabel.contains('gfx90a'))
+    {
+        hmmTestCommand = ""
+                        // temporarily disable hmm tests
+                        //  """
+                        //     export HSA_XNACK=1
+                        //     export ROCPRIM_USE_HMM=1
+                        //     ${testCommand} ${hmmTestCommandExclude}
+                        //  """
+    }
     def command = """#!/usr/bin/env bash
                 set -x
                 cd ${project.paths.project_build_prefix}
                 cd ${project.testDirectory}
-                ${sudo} LD_LIBRARY_PATH=/opt/rocm/lib ${testCommand} --exclude-regex rocprim.device_scan
+                ${testCommand} ${testCommandExclude}
+                ${hmmTestCommand}
             """
 
     platform.runCommand(this, command)

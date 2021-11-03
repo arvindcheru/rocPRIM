@@ -56,7 +56,7 @@ template<
     class ValuesOutputIterator,
     class OffsetIterator
 >
-__global__
+ROCPRIM_KERNEL
 __launch_bounds__(ROCPRIM_DEFAULT_MAX_BLOCK_SIZE)
 void segmented_sort_kernel(KeysInputIterator keys_input,
                            typename std::iterator_traits<KeysInputIterator>::value_type * keys_tmp,
@@ -83,7 +83,7 @@ void segmented_sort_kernel(KeysInputIterator keys_input,
 
 #define ROCPRIM_DETAIL_HIP_SYNC_AND_RETURN_ON_ERROR(name, size, start) \
     { \
-        auto _error = hipPeekAtLastError(); \
+        auto _error = hipGetLastError(); \
         if(_error != hipSuccess) return _error; \
         if(debug_synchronous) \
         { \

@@ -1,4 +1,4 @@
-// MIT License
+/// MIT License
 //
 // Copyright (c) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
 //
@@ -66,6 +66,7 @@ typedef ::testing::Types<
     DeviceSortParams<int8_t, int8_t>,
     DeviceSortParams<uint8_t, uint8_t>,
     DeviceSortParams<rocprim::half, rocprim::half, test_utils::half_less>,
+    DeviceSortParams<rocprim::bfloat16, rocprim::bfloat16, test_utils::bfloat16_less>,
     DeviceSortParams<int, float, ::rocprim::greater<int>>,
     DeviceSortParams<short, test_utils::custom_test_type<int>>,
     DeviceSortParams<double, test_utils::custom_test_type<double>>,
@@ -180,7 +181,7 @@ TYPED_TEST(RocprimDeviceSortTests, SortKey)
                     compare_op, stream, debug_synchronous
                 )
             );
-            HIP_CHECK(hipPeekAtLastError());
+            HIP_CHECK(hipGetLastError());
             HIP_CHECK(hipDeviceSynchronize());
 
             // Copy output to host
@@ -242,7 +243,7 @@ TYPED_TEST(RocprimDeviceSortTests, SortKeyValue)
             std::vector<key_type> keys_input = test_utils::get_random_data<key_type>(size, -100, 100, seed_value); // float16 can't exceed 65504
 
             std::vector<value_type> values_input(size);
-            std::iota(values_input.begin(), values_input.end(), 0);
+            test_utils::iota(values_input.begin(), values_input.end(), 0);
 
             std::vector<key_type> keys_output(size);
             std::vector<value_type> values_output(size);
@@ -332,7 +333,7 @@ TYPED_TEST(RocprimDeviceSortTests, SortKeyValue)
                     compare_op, stream, debug_synchronous
                 )
             );
-            HIP_CHECK(hipPeekAtLastError());
+            HIP_CHECK(hipGetLastError());
             HIP_CHECK(hipDeviceSynchronize());
 
             // Copy output to host
@@ -360,6 +361,7 @@ TYPED_TEST(RocprimDeviceSortTests, SortKeyValue)
                 expected_key[i] = expected[i].first;
                 expected_value[i] = expected[i].second;
             }
+
             ASSERT_NO_FATAL_FAILURE(test_utils::assert_eq(keys_output, expected_key));
             ASSERT_NO_FATAL_FAILURE(test_utils::assert_eq(values_output, expected_value));
 
